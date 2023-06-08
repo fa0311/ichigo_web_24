@@ -1,0 +1,21 @@
+{
+  "name": "ichigo_web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "element-plus": "^2.3.6",
+    "js-cookies": "^1.0.4",
+    "moment": "^2.29.4",
+    "socket.io-client": "^4.6.2",
+    "vue": "^3.3.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.2.3",
+    "vite": "^4.3.5"
+  }
+}
