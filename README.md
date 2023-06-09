@@ -57,9 +57,7 @@ python3 server.py
 ```sh
 wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
 
-nvm install-latest-npm 
-
-npm install stable --latest-npm
+nvm install stable --latest-npm
 ```
 ※nvm詳細については、以下githubリポジトリを参照のこと。
 [https://github.com/nvm-sh/nvm](https://github.com/nvm-sh/nvm{:target="_blank"})
@@ -69,6 +67,8 @@ npm install stable --latest-npm
 
 以下コマンドを打つことで、簡易的なウェブサーバが起動する。
 ```sh
+cd ichigo_web
+npm install
 npm run dev
 ```
 ブラウザを開き、以下URLを打ち込む。
