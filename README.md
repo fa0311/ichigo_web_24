@@ -17,7 +17,7 @@
    ※到来した結果に該当するクラスの場合1、そうではない場合0を積算する。
 
 $$ 
-MMA[class\_id]_{current} = ((N-1) * MMA[class\_id]_{before} + InputValue) / N 
+MMA_{class\_id, current} = ((N-1) * MMA_{class\_id, before} + InputValue) / N
 $$
 
 $$
