@@ -72,7 +72,7 @@ npm install stable --latest-npm
 npm run dev
 ```
 ブラウザを開き、以下URLを打ち込む。
-[http://localhost:8001](http://localhost:8889{:target="_blank"})
+[http://localhost:8889](http://localhost:8889{:target="_blank"})
 
 ---
 
