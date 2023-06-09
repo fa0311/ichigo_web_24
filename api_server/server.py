@@ -9,8 +9,6 @@ app_socketio = socketio.ASGIApp(sio, other_asgi_app=app_fastapi, socketio_path="
 
 @app_fastapi.get("/v1/speech/play")
 async def play_request(class_id: int):
-    """指定されたsidにemitするエンドポイント
-    """
     sio.start_background_task(
         sio.emit,
         "play_request", {"class_id": class_id})
