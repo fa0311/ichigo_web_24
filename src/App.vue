@@ -285,7 +285,7 @@ onBeforeUnmount(() => {
     <h1 v-if="disp_flg" class="display-result">{{ disp_result_name }}</h1>
 
     <el-dialog v-model="startDialog_visible" title="確認" width="70%">
-      <span>推定結果発話処理を開始します</span>
+      <span>実行開始します</span>
       <template #footer>
         <el-button
           type="primary"

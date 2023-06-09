@@ -10,8 +10,11 @@ export default defineConfig({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
+  build: {
+    outDir: "dist_ichigo_web",
+  },
   server: {
-    port: 8001,
+    port: 8889,
     strictPort: true,
     proxy: {
       '/ichigo_websocket': {

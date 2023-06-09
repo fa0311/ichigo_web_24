@@ -2,96 +2,136 @@
 
 イチゴ推定結果発報用Webアプリ（Vue3）
 
+---
+## システム概要
+![システム概要図](docs/system_overview.png) 
 
-## 準備
+---
+![アプリ動作例](docs/movie.gif) 
+
+
+---
+## 推定結果処理方法
+
+<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP1:</span>　各クラス別に平滑移動平均を逐次計算する。
+   ※到来した結果に該当するクラスの場合1、そうではない場合0を積算する。
+
+$ MMA[class\_id]_{current} = ((N-1) * MMA[class\_id]_{before} + InputValue) / N $
+
+$$
+InputValue = \begin{cases}
+    1 & (correct) \\
+    0 & (incorrect)
+  \end{cases}
+$$
+
+   ※推定結果スムージング係数 = $(N-1)/N$
+
+
+<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP2:</span>　最も移動平均値が高いクラスを抽出し、かつ、画面上で設定される「推定結果表示しきい値」を超えた場合、最終的な推定結果として提示する。
+
+
+---
+## APIサーバ起動
+
+Python仮想環境を構築し、必要なパッケージをインストールする。
+```sh
+cd api_server
+python -m venv env
+source ./env/bin/activate
+pip3 install fastapi python-socketio uvicorn[standard]
+```
+
+APIサーバを立ち上げる。
+```
+python3 server.py
+```
+
+---
+## Webアプリ
 
 ### node.jsセットアップ（※Linuxの場合）
-
-<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP1:</span> nvmをインストールする
+以下nvmを用いた場合の方法を記載する。
 ```sh
 wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+
+nvm install-latest-npm 
+
+npm install stable --latest-npm
 ```
+※nvm詳細については、以下githubリポジトリを参照のこと。
+[https://github.com/nvm-sh/nvm](https://github.com/nvm-sh/nvm{:target="_blank"})
 
-<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP2:</span> node.jsをインストールする
-```sh
-nvm install v14.21.3
-```
 
-<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP3:</span> 実行に必要なパッケージをインストールする
-```sh
-npm install
-```
+### Webアプリ実行
 
-### 実行方法（※デバッグ時のみ）
-
-以下コマンドを打つことで、ウェブサーバが起動する。
+以下コマンドを打つことで、簡易的なウェブサーバが起動する。
 ```sh
 npm run dev
 ```
 ブラウザを開き、以下URLを打ち込む。
-http://localhost:8001/
+[http://localhost:8001](http://localhost:8001{:target="_blank"})
 
-### デプロイ方法
-<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP1:</span> ビルドする
+---
 
+### 動作テスト（API使用方法）
+画像認識プログラム内から、以下APIを呼び出す。
+※class_idには0〜3までの推定結果を設定する。
 ```sh
-npm run build
+http://localhost:8000/v1/speech/play?class_id=0
 ```
-※ビルド成功した場合, ichigo_webフォルダ直下にdistフォルダが生成される。
 
-<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP2:</span> nginxをインストールする
+以下pythonスクリプトを実行することで、Webアプリの動作確認を行うことが出来る。
+```
+cd api_server
+python3 test.py
+```
+
+
+---
+### その他
+
+#### APIサーバ常駐化
+systemdなどを用いて、APIサーバを常駐化させる。
+[参考サイト: pythonスクリプトをdaemonにする[systemd編]](https://qiita.com/katsuNakajima/items/7ece6c74f992f652d732{:target="_blank"})
+
+
+#### Webアプリ常駐化
+Webサーバ(nginx)を用いて、Webアプリをサービス化する手順を示す。
+
+<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP1:</span> nginxをインストールする
 ```sh
 sudo apt-get install nginx
 ```
 
-<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP3:</span> アプリ一式をnginxの所定のフォルダへコピーする
-```sh
-sudo cp -r dist  /var/www/dist_ichigo_web
-```
-
-<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP4:</span> /etc/nginx/nginx.confを以下のように編集する。
-（※内容は適宜読み替えて設定のこと）
+/etc/nginx/nginx.confを以下のように編集しておく。
 ```nginx
-worker_processes  2;
-
-events {
-    worker_connections  1024;
-}
-
 http {
-    include       mime.types;
-    default_type  application/octet-stream;
-    sendfile        on;
-    keepalive_timeout  65;
-
-    autoindex on;
-    autoindex_exact_size off;
-    autoindex_localtime on;
-
     server {
-        listen       8083;
+        listen       8889;
         server_name  localhost;
 
-	root /var/www/dist_ichigo_web;
+        root /var/www/dist_ichigo_web;
 
-        location /ichigo_api/socket.io {
-            proxy_pass http://127.0.0.1:9987/ichigo_api/socket.io;
+        location /ichigo_websocket {
+            proxy_pass http://127.0.0.1:8000/ichigo_websocket;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header Host $host;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
         }
-
-        error_page   500 502 503 504  /50x.html;
-        location = /50x.html {
-            root   html;
-        }
     }
 }
 ```
 
-最後のブラウザを開き、以下URLを入力すると、ウェブアプリが表示される。
-http://localhost:8083/
 
+<span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP2:</span> Webアプリをビルドして配置する。
 
+```sh
+npm run build
+sudo cp -r dist_ichigo_web /var/www/
+```
+
+最後にブラウザで以下URLを入力すると、ウェブアプリが表示される。
+[http://localhost:8889](http://localhost:8889/{:target="_blank"})
