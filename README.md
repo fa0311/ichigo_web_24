@@ -16,7 +16,7 @@
 <span style="background:black; color:white; border-radius: 3px; padding: 5px;">STEP1:</span>　各クラス別に平滑移動平均を逐次計算する。
    ※到来した結果に該当するクラスの場合1、そうではない場合0を積算する。
 
-$ MMA[class\_id]_{current} = ((N-1) * MMA[class\_id]_{before} + InputValue) / N $
+$$ MMA[class\_id]_{current} = ((N-1) * MMA[class\_id]_{before} + InputValue) / N $$
 
 $$
 InputValue = \begin{cases}
