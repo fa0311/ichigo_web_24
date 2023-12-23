@@ -29,7 +29,7 @@ const smoothing_rate_def = 0.95;
 const key_smoothing_rate = "ICHIGO-WEB_smoothing_rate";
 var smoothing_rate_bk = Cookies.getItem(key_smoothing_rate);
 var smoothing_rate = ref(
-  smoothing_rate_def == null
+  smoothing_rate_bk == null
     ? smoothing_rate_def
     : parseFloat(smoothing_rate_bk)
 );
@@ -45,7 +45,7 @@ const judge_th_def = 50;
 const key_judge_th = "ICHIGO-WEB_judge_th";
 var judge_th_bk = Cookies.getItem(key_judge_th);
 var judge_th = ref(
-  judge_th_def == null ? judge_th_def : parseFloat(judge_th_bk)
+  judge_th_bk == null ? judge_th_def : parseFloat(judge_th_bk)
 );
 
 watch(limit_sec, () => {
