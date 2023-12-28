@@ -263,8 +263,7 @@ class IchigoWebsocket:
     def __disconnect(self):
         '''websocket切断'''
         try:
-            if self.__connected:
-                self.__sio.disconnect()
+            self.__sio.disconnect()
         except Exception as e:
             self.__logger.error(f"websocket.connect: exception {e}")
         finally:
