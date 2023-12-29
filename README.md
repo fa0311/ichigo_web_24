@@ -4,10 +4,14 @@
 
 ---
 ## システム概要
+---
+![アプリ動作例](docs/movie.gif) 
+
+---
 ![システム概要図](docs/system_overview.png) 
 
 ---
-![アプリ動作例](docs/movie.gif) 
+![シーケンス図](docs/system_seq.png) 
 
 
 ---
@@ -74,6 +78,15 @@ npm run dev
 ブラウザを開き、以下URLを打ち込む。
 [http://localhost:8889](http://localhost:8889{:target="_blank"})
 
+### 最終結果判定用プログラム実行
+
+以下コマンドを打つことで、最終結果判定用プログラムが動く。
+このプログラムでは、重量センサから取得した重量データと画像認識結果を用いて、最終的ないちご選別結果をwebsocket通信によりwebアプリへ定期送信を行う。
+```sh
+cd ichigo_web/ichigo_judge
+pip3 install -r requirements.txt
+python3 main.py
+```
 ---
 
 ### 動作テスト（API使用方法）
@@ -117,9 +130,8 @@ http {
 
         location /ichigo_websocket {
             proxy_pass http://127.0.0.1:8000/ichigo_websocket;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header Host $host;
             proxy_http_version 1.1;
+            proxy_set_header Host $host;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
         }
