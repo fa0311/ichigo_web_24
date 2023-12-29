@@ -253,6 +253,15 @@ class IchigoWebsocket:
                 self.__logger.error(
                     f"websocket.event: exception @ system_cmd: {e}")
 
+        @self.__sio.event
+        def system_cmd(data):
+            '''システムコマンド受信'''
+            try:
+                if 'cmd' in data and data['cmd'] == "RESTART_ICHIGO_JUDGE":
+                    self.__restart_reqdt = time.time()
+            except Exception as e:
+                self.__logger.error(f"websocket.event: exception @ system_cmd: {e}")
+
     def __check_thread(self):
         '''websocket接続監視 & 各種パラメータ定期配信処理'''
         self.__th_active_flg = True
@@ -276,7 +285,6 @@ class IchigoWebsocket:
             self.__disconnect()
             self.__sio.connect(
                 self.__ws_url,
-                transports=["websocket", "polling"],
                 socketio_path=self.__ws_path,
             )
             self.__connected = True
