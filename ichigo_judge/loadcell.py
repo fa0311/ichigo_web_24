@@ -188,4 +188,8 @@ class LoadCell:
                 self.__logger.error(f"loadcell: シリアル通信エラー {e}")
                 self.__disconnect()
                 time.sleep(1)
+            except Exception as e:
+                self.__logger.error(f"loadcell: 例外発生 {e}")
+                self.__disconnect()
+                time.sleep(1)
         self.__logger.warn(f"loadcell: stopped update_thread")
