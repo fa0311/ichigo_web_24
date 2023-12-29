@@ -24,10 +24,14 @@ var hold_sec = ref(hold_sec_def);
 const judge_th_def = 50;
 var judge_th = ref(judge_th_def);
 
-var weight_smoothing_rate = ref(0.5);
+var weight_smoothing_rate = ref(0.0);
 var loadcell_weight = ref(0);
 var weight_correct_mode = ref(1);
-var rank_names = ref(Array("不明", "？"));
+var rank_names = ref(Array("", "？"));
+
+// 重量データ補正関連: 正解重量データ格納用(入力2)
+var right_weight_0 = ref(50);
+var right_weight_1 = ref(100);
 
 // 各種編集フラグ
 var params_edit_flg = ref(false);
@@ -54,13 +58,6 @@ var speech_speed = ref(
   speech_speed_bk == undefined ? 1.0 : parseFloat(speech_speed_bk)
 );
 
-// 重量データ補正関連: 正解重量データ格納用
-const key_right_weight_data1 = "ICHIGO-WEB_right_weight_data1";
-var right_weight_data1_bk = Cookies.getItem(key_right_weight_data1);
-var right_weight_data1 = ref(
-  right_weight_data1_bk == undefined ? 25 : parseFloat(right_weight_data1_bk)
-);
-
 watch(smoothing_rate, () => {
   changeParameters();
 });
@@ -77,10 +74,6 @@ watch(weight_smoothing_rate, () => {
   changeParameters();
 });
 
-watch(right_weight_data1, () => {
-  Cookies.setItem(key_right_weight_data1, right_weight_data1.value);
-});
-
 watch(speech_limit_sec, () => {
   Cookies.setItem(key_speech_limit_sec, speech_limit_sec.value);
 });
@@ -95,6 +88,7 @@ watch(speech_speed, () => {
 
 const socket = io({
   path: "/ichigo_websocket",
+  transports: ["websocket", "polling"],
 });
 
 const setupWebsocketClient = () => {
@@ -140,14 +134,21 @@ const setupWebsocketClient = () => {
 
   // 各種パラメータ受信
   socket.on("change_parameters", (data) => {
-    if (!(params_edit_flg.value == true && data.src == "SERVER")) {
+    if (params_edit_flg.value == false) {
       smoothing_rate.value = data.smoothing_rate;
       hold_sec.value = data.hold_sec;
       judge_th.value = data.judge_th;
     }
-    if (!(weight_params_edit_flg.value == true && data.src == "SERVER")) {
+    if (weight_params_edit_flg.value == false) {
       weight_smoothing_rate.value = data.weight_smoothing_rate;
       weight_correct_mode.value = parseInt(data.weight_correct_mode);
+
+      if (data.right_weight_0 != undefined) {
+        right_weight_0.value = parseFloat(data.right_weight_0);
+      }
+      if (data.right_weight_1 != undefined) {
+        right_weight_1.value = parseFloat(data.right_weight_1);
+      }
     }
   });
 };
@@ -180,6 +181,13 @@ const weightCorrection = (index, right_weight) => {
     right_weight: right_weight,
   };
   socket.emit("weight_correction", payload);
+};
+
+const pubSystemCmd = (cmd) => {
+  var payload = {
+    cmd: cmd,
+  };
+  socket.emit("system_cmd", payload);
 };
 
 /**
@@ -226,8 +234,16 @@ onBeforeUnmount(() => {
 <template>
   <div class="container">
     <el-button
+      v-if="!params_edit_flg"
+      type="success"
+      size="small"
+      style="width: 200px"
+      @click="params_edit_flg = true"
+      >画像認識 パラメータ編集</el-button
+    >
+    <el-button
       v-if="params_edit_flg"
-      type="danger"
+      type="primary"
       size="small"
       style="width: 200px"
       @click="
@@ -237,21 +253,20 @@ onBeforeUnmount(() => {
       >編集終了</el-button
     >
     <el-button
-      v-else
-      type="success"
-      size="small"
-      style="width: 200px"
-      @click="params_edit_flg = true"
-      >画像認識 パラメータ編集</el-button
-    >
-
-    <el-button
       v-if="params_edit_flg"
       type="warning"
       size="small"
       style="width: 200px"
       @click="resetParams()"
       >パラメータリセット</el-button
+    >
+    <el-button
+      v-if="params_edit_flg"
+      type="danger"
+      size="small"
+      style="width: 200px"
+      @click="pubSystemCmd('RESTART_ICHIGO_JUDGE')"
+      >いちご判定処理リスタート</el-button
     >
 
     <!-- 各種パラメータ変更スライダー表示部 -->
@@ -355,7 +370,7 @@ onBeforeUnmount(() => {
                 v-model="weight_smoothing_rate"
                 :disabled="!weight_params_edit_flg"
                 :min="0.0"
-                :max="0.99"
+                :max="0.5"
                 :step="0.01"
                 :show-tooltip="true"
               />
@@ -403,9 +418,21 @@ onBeforeUnmount(() => {
               type="success"
               size="small"
               style="width: 100%; margin-bottom: 10px"
-              @click="weightCorrection(0, 0.0)"
-              >補正入力1（ゼログラム補正）</el-button
+              @click="weightCorrection(0, right_weight_0)"
+              >補正１データ登録</el-button
             >
+            <div v-if="weight_correct_mode != 0">
+              <span>正解重量入力１：{{ right_weight_0 }}グラム</span>
+              <el-slider
+                v-model="right_weight_0"
+                style="width: 100%; margin-bottom: 10px"
+                :min="1"
+                :max="200"
+                :step="1"
+                show-input
+              />
+            </div>
+
             <br />
 
             <el-button
@@ -413,18 +440,18 @@ onBeforeUnmount(() => {
               size="small"
               v-if="weight_correct_mode == 2"
               style="width: 100%"
-              @click="weightCorrection(1, right_weight_data1)"
-              >補正入力２（正解重量入力）</el-button
+              @click="weightCorrection(1, right_weight_1)"
+              >補正２データ登録</el-button
             >
             <br />
 
             <div v-if="weight_correct_mode == 2">
-              <span>正解重量入力：{{ right_weight_data1 }}グラム</span>
+              <span>正解重量入力２：{{ right_weight_1 }}グラム</span>
               <el-slider
-                v-model="right_weight_data1"
+                v-model="right_weight_1"
                 style="width: 100%; margin-bottom: 10px"
                 :min="1"
-                :max="100"
+                :max="200"
                 :step="1"
                 show-input
               />
@@ -436,8 +463,14 @@ onBeforeUnmount(() => {
 
     <!-- 最終結果表示部 -->
     <div class="answer-container">
-      <div class="answer1">{{ rank_names[0] }}</div>
-      <div class="answer2">{{ rank_names[1] }}</div>
+      <el-row :gutter="20" align="middle">
+        <el-col :span="16" align="center">
+          <div class="answer1">{{ rank_names[0] }}</div>
+        </el-col>
+        <el-col :span="8" align="left">
+          <div class="answer2">{{ rank_names[1] }}</div>
+        </el-col>
+      </el-row>
 
       <div class="tts-slider">
         <el-row :gutter="20">
@@ -537,10 +570,11 @@ onBeforeUnmount(() => {
   padding: 10px 20px 0 20px;
   border-radius: 10px;
   background: rgb(236, 255, 193);
+  color: rgb(65, 65, 65);
 }
 
 .display-weight {
-  font-size: 50px;
+  font-size: 4vw;
   text-align: right;
   padding-right: 25vw;
   vertical-align: middle;
@@ -549,7 +583,6 @@ onBeforeUnmount(() => {
 
 .weight-correct-modename {
   text-align: center;
-  color: gray;
   border-radius: 5px;
   border: 1px solid rgb(168, 168, 168); /* 1pxの太さの実線で、色は黒 */
 }
@@ -563,25 +596,24 @@ onBeforeUnmount(() => {
   padding: 20px 20px 0 20px;
   border-radius: 10px;
   background: rgb(255, 246, 193);
+  color: rgb(65, 65, 65);
 }
 
 .answer1 {
-  display: inline-block;
   font-size: 4vw;
   vertical-align: middle;
   line-height: 100px;
 }
 
 .answer2 {
-  display: inline-block;
   font-size: 5vw;
   text-align: center;
   vertical-align: middle;
-  color: gray;
-  margin: 0 0 0 40px;
+  margin: 0;
   padding: 5px 50px 10px 50px;
   border-radius: 5px;
-  border: 2px solid rgb(168, 168, 168);
+  border: 1px solid rgb(168, 168, 168);
+  width: 100%;
   line-height: 100px;
 }
 
