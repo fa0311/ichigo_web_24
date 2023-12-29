@@ -69,7 +69,8 @@ class IchigoRecog:
         max_idx = -1
         for idx in range(self.__max_class_num):
             val = 1.0 if idx == result_class else 0.0
-            self.__sum_class[idx] = smoothing_rate * self.__sum_class[idx] + (1.0 - smoothing_rate) * val
+            self.__sum_class[idx] = smoothing_rate * \
+                self.__sum_class[idx] + (1.0 - smoothing_rate) * val
             if max_val < self.__sum_class[idx]:
                 max_val = self.__sum_class[idx]
                 max_idx = idx
@@ -89,6 +90,7 @@ class IchigoWebsocket:
         self.__ws_path = path
         self.__params_fname = params_fname
         self.__weight_corrects_fname = weight_corrects_fname
+        self.__restart_reqdt: int = 0
 
         self.__params = dict()
         self.__load_params()
@@ -114,7 +116,6 @@ class IchigoWebsocket:
         self.__th.start()
 
     def __del__(self):
-        self.__logger.warn("deleted ichigo_websocket")
         self.stop()
 
     def stop(self):
@@ -151,7 +152,7 @@ class IchigoWebsocket:
     def parameters(self) -> bool:
         return self.__params
 
-    def pub_final_answer(self, class_id: int, class_values: list, class_names: list, weight_mean: float, weight: float, rank_names: list, speech: str):
+    def pub_final_answer(self, class_id: int, class_values: list, class_names: list, weight_mean: float, weight: float, rank_names: list, speech: str) -> bool:
         '''最終結果配信'''
         try:
             payload = {
@@ -166,13 +167,21 @@ class IchigoWebsocket:
             self.__sio.emit("final_answer", payload)
         except Exception as e:
             self.__logger.error(f"websocket.pub_final_answer: exception {e}")
+        finally:
+            if time.time() - self.__restart_reqdt < 5:
+                # 再起動要求ありの場合, Falseを返す
+                return False
+            return True
 
     def __pub_params(self):
         '''各種パラメータ配信'''
         try:
             if self.__connected:
-                self.__params['src'] = "SERVER"
-                self.__sio.emit("change_parameters", self.__params)
+                params = self.__params.copy()
+                params['src'] = "SERVER"
+                for index in range(2):
+                    params[f'right_weight_{index}'] = self.weight_corrects[f'right_weight_{index}']
+                self.__sio.emit("change_parameters", params)
         except Exception as e:
             self.__logger.error(f"websocket.pub_params: exception {e}")
 
@@ -198,9 +207,11 @@ class IchigoWebsocket:
             '''画像認識結果到来時'''
             try:
                 if data is not None and 'class_id' in data:
-                    self.__ichigo_recog.update(int(data['class_id']), self.__params)
+                    self.__ichigo_recog.update(
+                        int(data['class_id']), self.__params)
             except Exception as e:
-                self.__logger.error(f"websocket.event: exception @ play_request: {e}")
+                self.__logger.error(
+                    f"websocket.event: exception @ play_request: {e}")
 
         @self.__sio.event
         def change_parameters(data):
@@ -211,13 +222,15 @@ class IchigoWebsocket:
                     self.__params = data
                     self.__save_params()
             except Exception as e:
-                self.__logger.error(f"websocket.event: exception @ change_parameters: {e}")
+                self.__logger.error(
+                    f"websocket.event: exception @ change_parameters: {e}")
 
         @self.__sio.event
         def weight_correction(data):
             '''重量データ補正値入力時'''
             try:
-                self.__logger.info(f"websocket.event: weight_correction received: {data}")
+                self.__logger.info(
+                    f"websocket.event: weight_correction received: {data}")
                 correct_index = int(data['index'])  # 0:補正1(ゼロ補正), 1:補正2データ
                 right_weight = float(data['right_weight'])
 
@@ -227,7 +240,18 @@ class IchigoWebsocket:
                 self.__save_weight_corrects()
 
             except Exception as e:
-                self.__logger.error(f"websocket.event: exception @ weight_correction: {e}")
+                self.__logger.error(
+                    f"websocket.event: exception @ weight_correction: {e}")
+
+        @self.__sio.event
+        def system_cmd(data):
+            '''システムコマンド受信'''
+            try:
+                if 'cmd' in data and data['cmd'] == "RESTART_ICHIGO_JUDGE":
+                    self.__restart_reqdt = time.time()
+            except Exception as e:
+                self.__logger.error(
+                    f"websocket.event: exception @ system_cmd: {e}")
 
     def __check_thread(self):
         '''websocket接続監視 & 各種パラメータ定期配信処理'''
@@ -300,7 +324,8 @@ class IchigoWebsocket:
             with open(self.__weight_corrects_fname, 'w') as file:
                 json.dump(self.__weight_corrects, file)
         except Exception as e:
-            self.__logger.error(f"websocket.save_weight_corrects: exception {e}")
+            self.__logger.error(
+                f"websocket.save_weight_corrects: exception {e}")
 
     def __load_weight_corrects(self):
         '''重量データ補正情報取出（jsonファイルから）'''
@@ -314,4 +339,5 @@ class IchigoWebsocket:
                     self.__weight_corrects[f'right_weight_{index}'] = 0.0
                 self.__save_weight_corrects()
         except Exception as e:
-            self.__logger.error(f"websocket.load_weight_corrects: exception {e}")
+            self.__logger.error(
+                f"websocket.load_weight_corrects: exception {e}")

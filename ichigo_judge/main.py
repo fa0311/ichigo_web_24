@@ -10,7 +10,7 @@ if __name__ == "__main__":
         log_dir="./log/", log_name="judge", log_level=logging.INFO, console=True
     )
 
-    loadcell = LoadCell(logger, port="/dev/pts/17")
+    loadcell = LoadCell(logger)
 
     websocket = IchigoWebsocket(logger,
                                 url="http://127.0.0.1:8000",
@@ -20,7 +20,8 @@ if __name__ == "__main__":
     while True:
         try:
             # 重量センサ向けパラメータ更新
-            loadcell.update_params(params=websocket.parameters, weight_corrects=websocket.weight_corrects)
+            loadcell.update_params(
+                params=websocket.parameters, weight_corrects=websocket.weight_corrects)
 
             # 画像認識結果取得
             class_id = websocket.ichigo_class_id
@@ -32,8 +33,8 @@ if __name__ == "__main__":
             weight_mean = loadcell.weight_mean  # スムージング済
             weight = loadcell.weight  # 補正済
 
-            rank_names = ["不明", f"{class_id}"]
-            speech = "不明です"
+            rank_names = ["", f"？"]
+            speech = ""
 
             # -------------------------------------------------------------------
             # 270g 大玉平PK 秀品：円錐果, 平ら果
@@ -141,7 +142,9 @@ if __name__ == "__main__":
                     speech = "びーひん、でいー"
 
             # 最終結果送信
-            websocket.pub_final_answer(class_id, class_values, class_names, weight_mean, weight, rank_names, speech)
+            if websocket.pub_final_answer(class_id, class_values, class_names, weight_mean, weight, rank_names, speech) == False:
+                logger.warn("main: received restart request")
+                break
 
         except Exception as e:
             logger.error(f"エラー発生（{e}）")

@@ -4,7 +4,7 @@ import time
 
 
 class LoadCell:
-    def __init__(self, logger, port="/dev/ttyUSB0", baud_rate=115200, timeout_sec=1):
+    def __init__(self, logger, port="/dev/ttyACM0", baud_rate=115200, timeout_sec=1):
         self.__logger = logger
         self.__ser: serial.Serial = None
         self.__port: int = port
@@ -29,7 +29,6 @@ class LoadCell:
         self.__th.start()
 
     def __del__(self):
-        self.__logger.warn("loadcell: deleted")
         self.stop()
 
     @property
@@ -77,9 +76,11 @@ class LoadCell:
 
             for index in range(2):
                 if f'weight_{index}' in weight_corrects:
-                    self.__wx[index] = float(weight_corrects[f'weight_{index}'])
+                    self.__wx[index] = float(
+                        weight_corrects[f'weight_{index}'])
                 if f'right_weight_{index}' in weight_corrects:
-                    self.__wy[index] = float(weight_corrects[f'right_weight_{index}'])
+                    self.__wy[index] = float(
+                        weight_corrects[f'right_weight_{index}'])
 
     def __connect(self):
         '''シリアル接続'''
@@ -88,7 +89,8 @@ class LoadCell:
             self.__ser = serial.Serial(
                 self.__port, self.__baud_rate, timeout=self.__timeout_sec
             )
-            self.__logger.info(f"loadcell.connect: 接続しました port=[{self.__port}]")
+            self.__logger.info(
+                f"loadcell.connect: 接続しました port=[{self.__port}]")
         except serial.SerialException as e:
             self.__logger.error(f"loadcell.connect: 接続エラー発生 {e}")
 
@@ -116,17 +118,36 @@ class LoadCell:
         '''重量データ補正処理'''
         # 補正モード1 設定時
         if self.__weight_correct_mode == 1 and 1 <= len(self.__wx) and 1 <= len(self.__wy):
-            x1 = self.__wx[0]
-            y1 = self.__wy[0]
-            output_y = y1 + input_x - x1
+            # (x1,y1)のうち, x1がゼロの場合, (0,y1)の1点のみで補正処理を行う
+            if self.__wx[0] == 0:
+                output_y = self.__wy[0] + input_x
+            else:
+                # 原点(0,0)と(x1,y1)の2点での補正処理
+                x1 = 0.0
+                y1 = 0.0
+                x2 = self.__wx[0]
+                y2 = self.__wy[0]
+                output_y = (y2 - y1) / (x2 - x1) * (input_x - x1) + y1
         # 補正モード2 設定時
         elif self.__weight_correct_mode == 2 and 2 <= len(self.__wx) and 2 <= len(self.__wy):
-            x1 = self.__wx[0]
-            y1 = self.__wy[0]
-            x2 = self.__wx[1]
-            y2 = self.__wy[1]
-            output_y = (y2 - y1) / (x2 - x1) * (input_x - x1) + y1
-            print(f"({x1}, {y1}), ({x2}, {y2}) {input_x}  {output_y}")
+            if (
+                input_x <= self.__wx[0]
+                # (x1,y1)と(x2,y2)の２座標のうち, x1とx2が同じ値の場合, 原点(0,0)と(x1,y1)の2点のみで補正処理を行う
+                or self.__wx[0] == self.__wx[1]
+            ):
+                # 原点(0,0)と(x1,y1)の2点での補正処理
+                x1 = 0.0
+                y1 = 0.0
+                x2 = self.__wx[0]
+                y2 = self.__wy[0]
+                output_y = (y2 - y1) / (x2 - x1) * (input_x - x1) + y1
+            else:
+                # (x1, y1), (x2, y2)の2座標を用いて補正する
+                x1 = self.__wx[0]
+                y1 = self.__wy[0]
+                x2 = self.__wx[1]
+                y2 = self.__wy[1]
+                output_y = (y2 - y1) / (x2 - x1) * (input_x - x1) + y1
         # 補正OFF設定時
         else:
             output_y = input_x
@@ -135,18 +156,29 @@ class LoadCell:
     def __update_thread(self):
         '''重量データ取得スレッド（シリアル通信により逐次最新の重量データを取得する）'''
         self.__th_active_flg = True
+        rcvdt = 0
         while self.__th_active_flg:
             try:
+                if 3 < (time.time() - rcvdt):
+                    self.__weight_raw = 0.0
+                with self.__lock:
+                    # スムージング
+                    self.__weight_mean = self.__smoothing_rate * self.__weight_mean + \
+                        (1.0 - self.__smoothing_rate) * self.__weight_raw
+                    # 補正処理
+                    self.__weight = self.__weight_hosei(self.__weight_mean)
+
                 # シリアル通信正常時
                 if self.__ser is not None and self.__ser.isOpen():
-                    current_weight_str = self.__ser.readline().decode("utf-8").strip()
-                    with self.__lock:
+                    line = self.__ser.readline().decode("utf-8").strip()
+                    if line:
+                        rcvdt = time.time()
+                        data = eval(line)
+                        omosa = data.get("Omosa")
+                        weight_class = data.get("class")
+                        # print(f"omosa={omosa} class={weight_class}")
                         # 重量データ（生値）取得
-                        self._weight_raw = self.__parse_weight(current_weight_str)
-                        # スムージング
-                        self.__weight_mean = self.__smoothing_rate * self.__weight_mean + (1.0 - self.__smoothing_rate) * self._weight_raw
-                        # 補正処理
-                        self.__weight = self.__weight_hosei(self.__weight_mean)
+                        self.__weight_raw = self.__parse_weight(omosa)
                 # シリアル通信異常時
                 else:
                     # 再接続を行う

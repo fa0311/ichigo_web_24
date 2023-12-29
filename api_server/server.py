@@ -1,11 +1,12 @@
 import socketio
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 
 app_fastapi = FastAPI()
-sio = socketio.AsyncServer(async_mode='asgi')
-app_socketio = socketio.ASGIApp(sio, other_asgi_app=app_fastapi, socketio_path="/ichigo_websocket")
 
+sio = socketio.AsyncServer(async_mode='asgi', logger=False, engineio_logger=False, cors_allowed_origins="*")
+app_socketio = socketio.ASGIApp(sio, other_asgi_app=app_fastapi, socketio_path="/ichigo_websocket")
 
 @app_fastapi.get("/v1/speech/play")
 async def play_request(class_id: int):
@@ -47,6 +48,13 @@ async def weight_correction(sid, data):
     sio.start_background_task(
         sio.emit,
         "weight_correction", data)
+
+@sio.event
+async def system_cmd(sid, data):
+    '''システムコマンド配信'''
+    sio.start_background_task(
+        sio.emit,
+        "system_cmd", data)
 
 if __name__ == "__main__":
     uvicorn.run(app=app_socketio, host="0.0.0.0", port=8000, log_level="warning")
