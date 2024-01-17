@@ -27,6 +27,7 @@ if __name__ == "__main__":
             class_id = websocket.ichigo_class_id
             class_values = websocket.ichigo_class_values
             class_names = ["円錐果", "歪み果", "平ら果", "平ら秀"]
+            class_names2 = ["えんすいか", "歪みか", "平らか", "平らしゅう"]
             class_delay_sec = websocket.ichigo_class_delay_sec  # 最新認識結果受信からの経過時間（3秒以上であれば、データ無しと判断する）
 
             # 重量データ取得
@@ -142,6 +143,9 @@ if __name__ == "__main__":
                     rank_names[0] = f"B品：{class_names[class_id]}"
                     rank_names[1] = "D"
                     speech = "びーひん、でいー"
+
+            # 認識結果、グラム数、最終結果を全部読み上げる設定
+            speech = f"{class_names2[class_id]}。{weight} グラム。{speech}"
 
             # 最終結果送信
             if websocket.pub_final_answer(class_id, class_values, class_names, weight_mean, weight, rank_names, speech) == False:
