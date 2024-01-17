@@ -1,6 +1,7 @@
 import serial
 import time
 import random
+import json
 
 # ----------------------------------------------------------------
 # 重量データテスト用プログラム
@@ -14,6 +15,8 @@ if __name__ == "__main__":
     while (True):
         # 100グラム ±5 でデータ送信を行う
         weight = 100.0 + 5.0*random.random()
-        ser.write(f"{weight}\n".encode())
+        data = {'Omosa': weight, 'class': 0}
+        serialized_data = f"{json.dumps(data)}\n".encode()
+        ser.write(serialized_data)        
         print(f"weight={weight}")
         time.sleep(0.1)

@@ -15,6 +15,8 @@ class LoadCell:
         self.__weight_raw: float = 0.0
         self.__weight_mean: float = 0.0
 
+        self.__rcvdt = 0
+
         self.__smoothing_rate: float = 0.95
         self.__weight_correct_mode: int = 0
 
@@ -48,6 +50,12 @@ class LoadCell:
         '''補正済み重量データ（単位：グラム）'''
         with self.__lock:
             return self.__weight
+
+    @property
+    def delay_sec(self) -> int:
+        '''データ受信遅延時間（秒）'''
+        with self.__lock:
+            return int(time.time() - self.__rcvdt)
 
     def reset(self):
         '''各種変数初期化'''
@@ -156,10 +164,10 @@ class LoadCell:
     def __update_thread(self):
         '''重量データ取得スレッド（シリアル通信により逐次最新の重量データを取得する）'''
         self.__th_active_flg = True
-        rcvdt = 0
         while self.__th_active_flg:
             try:
-                if 3 < (time.time() - rcvdt):
+                # 3秒以上データが受信できない場合, 重量値をゼロにする
+                if 3 < (time.time() - self.__rcvdt):
                     self.__weight_raw = 0.0
                 with self.__lock:
                     # スムージング
@@ -172,7 +180,7 @@ class LoadCell:
                 if self.__ser is not None and self.__ser.isOpen():
                     line = self.__ser.readline().decode("utf-8").strip()
                     if line:
-                        rcvdt = time.time()
+                        self.__rcvdt = time.time()
                         data = eval(line)
                         omosa = data.get("Omosa")
                         weight_class = data.get("class")
