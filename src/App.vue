@@ -5,7 +5,7 @@ import Cookies from "js-cookies";
 import moment from "moment";
 import PlaySound from "./playSound.js";
 
-const max_class_num = 4;
+const max_class_num = 6;
 var sum_class = ref(Array(max_class_num).fill(0));
 // ※クラス名リストはサーバ側から配信されるので、ここでは仮設定とする
 var class_names = ref(Array("0:円錐果", "1:歪み果", "2:平ら果", "3:平ら秀"));
@@ -190,6 +190,52 @@ const pubSystemCmd = (cmd) => {
   socket.emit("system_cmd", payload);
 };
 
+
+
+
+
+/**
+ * 加筆部分
+ */
+
+function buffer_to_string(buf) {
+  return String.fromCharCode.apply("", new Uint16Array(buf))
+}
+
+function large_buffer_to_string(buf) {
+  var tmp = [];
+  var len = 1024;
+  for (var p = 0; p < buf.byteLength; p += len) {
+    tmp.push(buffer_to_string(buf.slice(p, p + len)));
+  }
+  return tmp.join("");
+}
+
+const setupimageWebsocketClient = () => {
+  const socket = io({
+    path: "/ichigo_websocket",
+  });
+  socket.on("getImage", (data) => {
+    if (data.image){
+        console.log(data.image);
+        /*
+        const str = data.image.replace(/^b'|'$|/g,'');
+        const src = str.replace(/\s+/g,'+');
+        console.log(str);
+        */
+        const target = document.querySelector('#display');
+        const url = 'data:;base64,' + data.image;
+        target.src = url;
+    }
+  });
+};
+
+
+
+
+
+
+
 /**
  * 画面内をクリックした場合にコールバックされる
  */
@@ -214,6 +260,14 @@ var resetParams = () => {
  */
 onMounted(() => {
   setupWebsocketClient();
+  
+  
+   /**
+   * 加筆部分を呼び出し
+   */
+  setupimageWebsocketClient();
+  
+  
 });
 
 /**
@@ -511,6 +565,12 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
+
+    <div class="display-result">
+        <img id="display" src="" style="width: 640px; height: 480px;">
+    </div>
+
+
     <!-- 初回表示時ダイアログ設定 -->
     <el-dialog v-model="startDialog_visible" title="確認" width="70%">
       <span>実行開始します</span>
@@ -622,5 +682,12 @@ onBeforeUnmount(() => {
   vertical-align: middle;
   margin: 10px 0 0 0;
   padding: 0;
+}
+
+.display-result {
+    display: flex; /* Flexboxレイアウトを使用 */
+    justify-content: center; /* 水平方向の中央揃え */
+    height: 100vh; /* 親要素の高さをビューポートの高さにする */
+    margin: 0; /* デフォルトのマージンを削除 */
 }
 </style>

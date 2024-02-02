@@ -1,0 +1,159 @@
+<template>
+  <div class="container">
+    <!-- 最終結果表示部 -->
+    
+    <video id="janusVideo" width="640" height="480" autoplay playsinline controls></video>
+    
+    <el-dialog v-model="startDialog_visible" title="確認" width="70%">
+      <span>実行開始します</span>
+      <template #footer>
+        <el-button
+          type="primary"
+          style="width: 100%"
+          @click="startDialog_visible = false">OK
+        </el-button>
+      </template>
+    </el-dialog>  
+  </div>
+</template>
+
+/*
+scriptタグ
+Vueの伝統的なスクリプトセクション。
+data(), methods, computed, watch などのオプションAPIを使用してコンポーネントのロジックを定義する。
+script setupタグ
+Vue 3.2で導入された新しい機能で、Composition APIを使用してコンポーネントを記述する際の簡潔な記法。
+このセクション内で直接 ref, computed, watch などのComposition API関数を使用できる。
+このセクション内で定義された変数や関数は、テンプレート内で直接使用できる。
+*/
+<script setup>
+import { ref, watch, onMounted, onBeforeMount, onBeforeUnmount } from "vue";
+import { io } from "socket.io-client";
+
+var screen_clicked = false;
+var startDialog_visible = ref(true);
+
+const setupWebsocketClient = () => {
+  const socket = io({
+    path: "/ichigo_websocket",
+  });
+
+  /*サーバからplay_requestというイベントが送信されたときのリスナーの設定
+    受け取ったデータのclass_idを出力。ただし、startDialog_visible.valueがfalseのときのみ。
+  */
+  socket.on("play_request", (data) => {
+    //if (startDialog_visible.value == false) {
+    if (startDialog_visible.value == true) {
+      console.log(data.class_id);
+    }
+  });
+};
+
+//画面内をクリックした場合にコールバックされる
+var clickedScreen = () => {
+  if (screen_clicked == false) {
+    screen_clicked = true;
+    //audio.playSilent();
+  }
+};
+
+
+
+let janus;
+let streaming;
+function initJanus() {
+  Janus.init({
+    debug: "all",
+    callback: function() {
+      if(!Janus.isWebrtcSupported()) {
+        console.error("No WebRTC support... ");
+        return;
+      }
+      // Create Janus session
+      janus = new Janus({
+        server: "ws://192.168.1.87:8088/janus",
+        success: function() {
+          // Attach to streaming plugin
+          janus.attach({
+            plugin: "janus.plugin.streaming",
+            success: function(pluginHandle) {
+              streaming = pluginHandle;
+              startStream();
+            },
+            error: function(error) {
+              console.error("Error attaching to streaming plugin", error);
+            },
+            onmessage: function(msg, jsep) {
+              if(jsep !== undefined && jsep !== null) {
+                // Answer
+                streaming.createAnswer({
+                  jsep: jsep,
+                  media: { audioSend: false, videoSend: false },
+                  success: function(jsep) {
+                    let body = { "request": "start" };
+                    streaming.send({ "message": body, "jsep": jsep });
+                  },
+                  error: function(error) {
+                    console.error("WebRTC error", error);
+                  }
+                });
+              }
+            },
+            onremotestream: function(stream) {
+              Janus.attachMediaStream(document.getElementById('janusVideo'), stream);
+            }
+          });
+        },
+        error: function(error) {
+          console.error("Janus error", error);
+        },
+        destroyed: function() {
+          window.location.reload();
+        }
+      });
+    }
+  });
+}
+function startStream() {
+  var body = { "request": "watch", "id": 10 };
+  streaming.send({"message": body});
+}
+
+
+
+//マウント時に呼出
+onMounted(() => {
+  setupWebsocketClient();
+  
+  initJanus();
+  
+});
+
+//マウント前に呼出
+onBeforeMount(() => {
+  window.addEventListener("click", clickedScreen);
+});
+
+//アンマウント前に呼出
+onBeforeUnmount(() => {
+  window.removeEventListener("click", clickedScreen);
+});
+</script>
+
+/*
+styleタグ
+通常のスタイル定義と同様の動作をする。
+定義されたスタイルはグローバルに適用され、ページ内のすべての要素に影響を与える可能性がある。
+style scopedタグ
+このscoped属性が付与されたスタイルは、現在のコンポーネントのスコープ内でのみ適用される。
+この属性は、コンポーネントのテンプレートの要素に自動的に追加され、スタイル定義もそれに合わせて修正される。
+このスタイルはコンポーネントの外部に漏れ出ることがなく、カプセル化された形でスタイルを定義できる。
+*/
+<style scoped>
+.container {
+  position: relative;
+  padding: 20px;
+  margin: auto;
+  width: 100%;
+}
+</style>

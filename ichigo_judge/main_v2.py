@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import logging
 from logger import Logger
 import time
@@ -7,10 +9,14 @@ from loadcell import LoadCell
 if __name__ == "__main__":
 
     logger = Logger(
-        log_dir="./log/", log_name="judge", log_level=logging.INFO, console=True
+        log_dir="/home/user/ichigo_web/ichigo_judge/log/", log_name="judge", log_level=logging.INFO, console=True
     )
+    
+    # 仮想シリアルポート(/dev/pts/4)経由でデバイスからデータを読み取る
+    #loadcell = LoadCell(logger, port="/dev/pts/4")
 
-    loadcell = LoadCell(logger)
+    # 物理シリアルポート(/dev/ttyUSB0)経由でデバイスからデータを読み取る
+    loadcell = LoadCell(logger, port="/dev/ttyUSB0")
 
     websocket = IchigoWebsocket(logger,
                                 url="http://127.0.0.1:8000",
@@ -20,131 +26,150 @@ if __name__ == "__main__":
     while True:
         try:
             # 重量センサ向けパラメータ更新
-            loadcell.update_params(
-                params=websocket.parameters, weight_corrects=websocket.weight_corrects)
+            loadcell.update_params(params=websocket.parameters, weight_corrects=websocket.weight_corrects)
 
             # 画像認識結果取得
             class_id = websocket.ichigo_class_id
+
+            # クラスID確認用
+            # print(websocket.ichigo_class_id)
+
             class_values = websocket.ichigo_class_values
-            class_names = ["円錐果", "歪み果", "平ら果", "平ら秀"]
+            ### class_id:{0:"円錐果", 1:"歪み果", 2:"平らA", 3:"平ら秀"}
+            class_names = ["","ドルチェ", "秀品", "A品", "B品","C品"]
 
             # 重量データ取得
             # weight_raw = loadcell.weight_raw  # 生データ
             weight_mean = loadcell.weight_mean  # スムージング済
             weight = loadcell.weight  # 補正済
 
-            rank_names = ["", f"？"]
-            speech = ""
+            rank_names = ["不明", f"{class_id}"]
+            speech = "不明です"
 
+            #  形と重さによる条件分岐部分
             # -------------------------------------------------------------------
-            # 270g 大玉平PK 秀品：円錐果, 平ら果
+            # 秀品
             if (
-                class_id == 0  # 円錐果
-                or class_id == 3  # 平ら秀
+                # weight >= 20 
+                class_id == 2
             ):
-                rank_names[0] = f"秀品：{class_names[class_id]}"
+                rank_names[0] = f"秀品"
 
                 # S5 (52g以上)
                 if 52 <= weight:
                     rank_names[1] = "S5"
-                    speech = "えす、ごう"
+                    speech = "しゅうひん、ごこづめ"
                 # S6 (43g以上)
                 elif 43 <= weight:
                     rank_names[1] = "S6"
-                    speech = "えす、ろく"
+                    speech = "しゅうひん、ろくこづめ"
                 # S7 (36g以上)
                 elif 36 <= weight:
                     rank_names[1] = "S7"
-                    speech = "えす、なな"
+                    speech = "しゅうひん、ななこづめ"
                 # S8 (31g以上)
                 elif 31 <= weight:
                     rank_names[1] = "S8"
-                    speech = "えす、はち"
+                    speech = "しゅうひん、はちこづめ"
                 # S9 (28g以上)
                 elif 28 <= weight:
                     rank_names[1] = "S9"
-                    speech = "えす、きゅう"
+                    speech = "しゅうひん、きゅうこつめ"
                 # S10 (25g以上)
                 elif 25 <= weight:
                     rank_names[1] = "S10"
-                    speech = "えす、じゅう"
+                    speech = "しゅうひん、じゅうこづめ"
                 # S12 (20g以上)
                 elif 20 <= weight:
                     rank_names[1] = "S12"
-                    speech = "えす、じゅうに"
+                    speech = "しゅうひん、じゅうにこづめ"
                 # 規格外 S (19g以下)
                 else:
-                    rank_names[0] = f"規格外：{class_names[class_id]}"
+                    rank_names[0] = f"規格外:秀"
                     rank_names[1] = "S"
-                    speech = "えす"
+                    speech = "きかくがい、しゅうひん"
 
             # -------------------------------------------------------------------
-            # 270g 大玉平PK A品: 平ら果
-            elif class_id == 2:  # 平ら果
-                rank_names[0] = f"A品：{class_names[class_id]}"
+            # A品
+            elif  class_id == 3 :
+
+                rank_names[0] = f"A品"
 
                 # A5 (52g以上)
                 if 52 <= weight:
                     rank_names[1] = "A5"
-                    speech = "えい、ごう"
+                    speech = "えいひん、ごこづめ"
                 # A6 (43g以上)
                 elif 43 <= weight:
                     rank_names[1] = "A6"
-                    speech = "えい、ろく"
+                    speech = "えいひん、ろくこづめ"
                 # A7 (36g以上)
                 elif 36 <= weight:
                     rank_names[1] = "A7"
-                    speech = "えい、なな"
+                    speech = "えいひん、ななこづめ"
                 # A8 (31g以上)
                 elif 31 <= weight:
                     rank_names[1] = "A8"
-                    speech = "えい、はち"
+                    speech = "えいひん、はちこづめ"
                 # A9 (28g以上)
                 elif 28 <= weight:
                     rank_names[1] = "A9"
-                    speech = "えい、きゅう"
+                    speech = "えいひん、きゅうこづめ"
                 # A10 (25g以上)
                 elif 25 <= weight:
                     rank_names[1] = "A10"
-                    speech = "えい、じゅう"
+                    speech = "えいひん、じゅうこづめ"
                 # A12 (20g以上)
                 elif 20 <= weight:
                     rank_names[1] = "A12"
-                    speech = "えい、じゅうに"
+                    speech = "えいひん、じゅうにこづめ"
                 # A品 (19g以下)
                 else:
-                    rank_names[0] = f"A品：{class_names[class_id]}"
+                    rank_names[0] = f"規格外:A"
                     rank_names[1] = "A"
-                    speech = "えい"
+                    speech = "きかくがい、えいひん"
 
+            
             # -------------------------------------------------------------------
-            # 歪み果
-            elif class_id == 1:  # 歪み果
+            # ドルチェ/B品
+            elif class_id == 1 :
+
                 # D5 (52g以上)
                 if 52 <= weight:
                     rank_names[0] = "ドルチェ"
                     rank_names[1] = "D5"
-                    speech = "ドルチェ、でい、ごう"
+                    speech = "ドルチェ、ごこづめ"
                 # D6 (43g以上)
                 elif 43 <= weight:
                     rank_names[0] = "ドルチェ"
                     rank_names[1] = "D6"
-                    speech = "ドルチェ、でい、ろく"
+                    speech = "ドルチェ、ろくこづめ"
                 # D7 (36g以上)
                 elif 36 <= weight:
                     rank_names[0] = "ドルチェ"
                     rank_names[1] = "D7"
-                    speech = "ドルチェ、でい、なな"
+                    speech = "ドルチェ、ななこづめ"
                 # D (35g以下)
                 else:
-                    rank_names[0] = f"B品：{class_names[class_id]}"
-                    rank_names[1] = "D"
-                    speech = "びーひん、でいー"
+                    rank_names[0] = f"規格外:B"
+                    rank_names[1] = "B"
+                    speech = "きかくがい、びいひん"
 
+
+            # -------------------------------------------------------------------
+            elif class_id in (4,5) :
+               
+                rank_names[0] = f"規格外:D"
+                rank_names[1] = "D"
+                speech = "きかくがい、でいひん"
+
+                                
+            
+            # -------------------------------------------------------------------
+
+            
             # 最終結果送信
-            if websocket.pub_final_answer(class_id, class_values, class_names, weight_mean, weight, rank_names, speech) == False:
-                logger.warn("main: received restart request")
-                break
+            websocket.pub_final_answer(class_id, class_values, class_names, weight_mean, weight, rank_names, speech)
 
         except Exception as e:
             logger.error(f"エラー発生（{e}）")

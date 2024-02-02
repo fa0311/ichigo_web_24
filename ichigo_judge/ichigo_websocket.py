@@ -9,7 +9,7 @@ class IchigoRecog:
     '''画像認識結果処理クラス（スムージング処理などを行う）'''
 
     def __init__(self):
-        self.__max_class_num: int = 4
+        self.__max_class_num: int = 6
         self.__sum_class = [0.0] * self.__max_class_num
         self.__class_id: int = -1
         self.__hold_sec: float = 0.0
@@ -25,10 +25,6 @@ class IchigoRecog:
     @property
     def class_values(self) -> list:
         return self.__sum_class
-
-    @property
-    def class_delay_sec(self) -> int:
-        return int(time.time() - self.__updatedt)
 
     def reset(self):
         self.__class_id = -1
@@ -146,11 +142,6 @@ class IchigoWebsocket:
         if self.__connected == False:
             return -1
         return self.__ichigo_recog.class_values
-
-    @property
-    def ichigo_class_delay_sec(self) -> int:
-        '''画像認識結果受信遅延時間（秒）'''
-        return self.__ichigo_recog.class_delay_sec
 
     @property
     def weight_corrects(self) -> dict:
@@ -283,11 +274,6 @@ class IchigoWebsocket:
                         self.__connect()
                 else:
                     self.__pub_params()
-
-                # 認識結果受信無しの場合, データをゼロへ縮減させる
-                if 3 < self.__ichigo_recog.class_delay_sec:
-                    self.__ichigo_recog.reset()
-
             except Exception as e:
                 self.__logger.error(f"exception @ loop: {e}")
             finally:

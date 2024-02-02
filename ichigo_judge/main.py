@@ -7,10 +7,14 @@ from loadcell import LoadCell
 if __name__ == "__main__":
 
     logger = Logger(
-        log_dir="./log/", log_name="judge", log_level=logging.INFO, console=True
+        log_dir="/home/user/ichigo_web/ichigo_judge/log/", log_name="judge", log_level=logging.INFO, console=True
     )
+    
+    # 仮想シリアルポート(/dev/pts/4)経由でデバイスからデータを読み取る
+    #loadcell = LoadCell(logger, port="/dev/pts/4")
 
-    loadcell = LoadCell(logger)
+    # 物理シリアルポート(/dev/ttyUSB0)経由でデバイスからデータを読み取る
+    loadcell = LoadCell(logger, port="/dev/ttyUSB0")
 
     websocket = IchigoWebsocket(logger,
                                 url="http://127.0.0.1:8000",
@@ -20,29 +24,26 @@ if __name__ == "__main__":
     while True:
         try:
             # 重量センサ向けパラメータ更新
-            loadcell.update_params(
-                params=websocket.parameters, weight_corrects=websocket.weight_corrects)
+            loadcell.update_params(params=websocket.parameters, weight_corrects=websocket.weight_corrects)
 
             # 画像認識結果取得
             class_id = websocket.ichigo_class_id
             class_values = websocket.ichigo_class_values
-            class_names = ["円錐果", "歪み果", "平ら果", "平ら秀"]
-            class_names2 = ["えんすいか", "ひずみか", "たいらか", "たいらしゅう"]
-            class_delay_sec = websocket.ichigo_class_delay_sec  # 最新認識結果受信からの経過時間（3秒以上であれば、データ無しと判断する）
+            ### class_id:{0:"円錐果", 1:"歪み果", 2:"平らA", 3:"平ら秀"}
+            class_names = ["平らA", "円錐果", "歪み果", "平ら秀"]
 
             # 重量データ取得
             # weight_raw = loadcell.weight_raw  # 生データ
             weight_mean = loadcell.weight_mean  # スムージング済
             weight = loadcell.weight  # 補正済
-            weight_delay_sec = loadcell.delay_sec  # 最新重量データ受信からの経過時間（3秒以上であれば、データ無しと判断する）
 
-            rank_names = ["", f"？"]
-            speech = ""
+            rank_names = ["不明", f"{class_id}"]
+            speech = "不明です"
 
             # -------------------------------------------------------------------
             # 270g 大玉平PK 秀品：円錐果, 平ら果
             if (
-                class_id == 0  # 円錐果
+                class_id == 1  # 円錐果
                 or class_id == 3  # 平ら秀
             ):
                 rank_names[0] = f"秀品：{class_names[class_id]}"
@@ -82,8 +83,8 @@ if __name__ == "__main__":
                     speech = "えす"
 
             # -------------------------------------------------------------------
-            # 270g 大玉平PK A品: 平ら果
-            elif class_id == 2:  # 平ら果
+            # 270g 大玉平PK A品: 平らA
+            elif class_id == 0:  # 平らA
                 rank_names[0] = f"A品：{class_names[class_id]}"
 
                 # A5 (52g以上)
@@ -122,7 +123,7 @@ if __name__ == "__main__":
 
             # -------------------------------------------------------------------
             # 歪み果
-            elif class_id == 1:  # 歪み果
+            elif class_id == 2:  # 歪み果
                 # D5 (52g以上)
                 if 52 <= weight:
                     rank_names[0] = "ドルチェ"
@@ -144,15 +145,8 @@ if __name__ == "__main__":
                     rank_names[1] = "D"
                     speech = "びーひん、でいー"
 
-            # 認識結果、グラム数、最終結果を全部読み上げる設定
-            if 0 <= class_id:
-                speech = f"{class_names2[class_id]}。{int(weight)} グラム。{speech}"
-                #speech = f"{class_names2[class_id]}"
-            
             # 最終結果送信
-            if websocket.pub_final_answer(class_id, class_values, class_names, weight_mean, weight, rank_names, speech) == False:
-                logger.warn("main: received restart request")
-                break
+            websocket.pub_final_answer(class_id, class_values, class_names, weight_mean, weight, rank_names, speech)
 
         except Exception as e:
             logger.error(f"エラー発生（{e}）")
